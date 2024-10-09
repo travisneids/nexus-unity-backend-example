@@ -2,138 +2,118 @@ using System.Collections;
 using UnityEngine;
 using UnityEngine.Networking;
 using UnityEngine.UI;
-using static System.Net.Mime.MediaTypeNames;
+using TMPro;
+using System;
 
 public class AuthController : MonoBehaviour
 {
     [Header("UI Elements")]
-    public InputField usernameInputField;
-    public InputField passwordInputField;
+    public TMP_InputField usernameInputField;
+    public TMP_InputField passwordInputField;
     public Button registerButton;
     public Button loginButton;
-    public Text feedbackText;
+    public TMP_Text feedbackText;
 
-    private const string backendUrl = "";
+    private const string backendUrl = "http://localhost:5000/api/auth";
+    private const string RegisterEndpoint = "/register";
+    private const string LoginEndpoint = "/login";
     private string token = "";
 
     private void Start()
     {
         // Add listeners for buttons
-        registerButton.onClick.AddListener(RegisterUser);
-        loginButton.onClick.AddListener(LoginUser);
+        registerButton.onClick.AddListener(() => ProcessUserCredentials(RegisterEndpoint));
+        loginButton.onClick.AddListener(() => ProcessUserCredentials(LoginEndpoint));
     }
 
-    // Register user function
-    public void RegisterUser()
+    // Process registration or login
+    private void ProcessUserCredentials(string endpoint)
     {
         string username = usernameInputField.text;
         string password = passwordInputField.text;
 
         if (string.IsNullOrEmpty(username) || string.IsNullOrEmpty(password))
         {
-            feedbackText.text = "Username and password required!";
+            UpdateFeedbackText("Username and password required!");
             return;
         }
 
-        StartCoroutine(RegisterCoroutine(username, password));
+        StartCoroutine(SendJsonRequest(new UserCredentials(username, password), backendUrl + endpoint, endpoint == LoginEndpoint));
     }
 
-    public void LoginUser()
+    // Send JSON request to server
+    private IEnumerator SendJsonRequest(UserCredentials userData, string url, bool isLoginRequest)
     {
-        string username = usernameInputField.text;
-        string password = passwordInputField.text;
+        // Convert user credentials to JSON
+        string jsonPayload = JsonUtility.ToJson(userData);
+        LogRequest(url, jsonPayload);
 
-        if (string.IsNullOrEmpty(username) || string.IsNullOrEmpty(password))
-        {
-            feedbackText.text = "Username and password required!";
-            return;
-        }
+        // Create UnityWebRequest with JSON data
+        UnityWebRequest www = new UnityWebRequest(url, "POST");
+        byte[] jsonToSend = new System.Text.UTF8Encoding().GetBytes(jsonPayload);
+        www.uploadHandler = new UploadHandlerRaw(jsonToSend);
+        www.downloadHandler = new DownloadHandlerBuffer();
+        www.SetRequestHeader("Content-Type", "application/json");
 
-        StartCoroutine(LoginCoroutine(username, password));
-    }
-
-    private IEnumerator RegisterCoroutine(string username, string password)
-    {
-        WWWForm form = new WWWForm();
-        form.AddField("username", username);
-        form.AddField("password", password);
-
-        UnityWebRequest www = UnityWebRequest.Post(backendUrl + "/register", form);
+        // Send the request
         yield return www.SendWebRequest();
 
+        // Handle the response
         if (www.result == UnityWebRequest.Result.Success)
         {
-            feedbackText.text = "Registration successful!";
+            UpdateFeedbackText(isLoginRequest ? "Login successful!" : "Registration successful!");
+            LogResponse(www);
+
+            // If it's a login request, save the token
+            if (isLoginRequest)
+            {
+                TokenResponse tokenResponse = JsonUtility.FromJson<TokenResponse>(www.downloadHandler.text);
+                SaveTokenSecurely(tokenResponse.token);
+            }
         }
         else
         {
-            feedbackText.text = "Error: " + www.error;
+            UpdateFeedbackText("Error: " + www.error);
+            Debug.LogError("Error response: " + www.downloadHandler.text);
         }
     }
 
-    private IEnumerator LoginCoroutine(string username, string password)
+    // Update the feedback text
+    private void UpdateFeedbackText(string message)
     {
-        WWWForm form = new WWWForm();
-        form.AddField("username", username);
-        form.AddField("password", password);
-
-        UnityWebRequest www = UnityWebRequest.Post(backendUrl + "/login", form);
-        yield return www.SendWebRequest();
-
-        if (www.result == UnityWebRequest.Result.Success)
-        {
-            // Extract token from response and save it
-            TokenResponse tokenResponse = JsonUtility.FromJson<TokenResponse>(www.downloadHandler.text);
-            SaveTokenSecurely(tokenResponse.token);
-            feedbackText.text = "Login successful!";
-        }
-        else
-        {
-            feedbackText.text = "Error: " + www.error;
-        }
+        feedbackText.text = message;
     }
 
     // Save token securely using PlayerPrefs (encrypted) or use a more secure method on mobile platforms
     private void SaveTokenSecurely(string token)
     {
         this.token = token;
-
-        // Option 1: Encrypt and save in PlayerPrefs (simplified)
-        string encryptedToken = Encrypt(token);  // You should implement your own encryption here
+        string encryptedToken = Encrypt(token);  // Implement your own encryption here
         PlayerPrefs.SetString("auth_token", encryptedToken);
-
-        // Option 2: Use secure storage (e.g., Keychain on iOS, Keystore on Android)
-        // Use Unity's SecurePlayerPrefs or a third-party package for secure storage
     }
 
     private string RetrieveToken()
     {
         string encryptedToken = PlayerPrefs.GetString("auth_token", "");
-        if (string.IsNullOrEmpty(encryptedToken))
-        {
-            return null;
-        }
-
-        return Decrypt(encryptedToken);
+        return string.IsNullOrEmpty(encryptedToken) ? null : Decrypt(encryptedToken);
     }
 
     // Mock encryption function (replace with actual encryption logic)
-    private string Encrypt(string data)
-    {
-        // Replace with actual encryption logic
-        return data;  // Simplified for demo purposes
-    }
+    private string Encrypt(string data) => data; // Simplified for demo purposes
 
     // Mock decryption function (replace with actual decryption logic)
-    private string Decrypt(string data)
+    private string Decrypt(string data) => data; // Simplified for demo purposes
+
+    // Logging helpers
+    private void LogRequest(string url, string payload)
     {
-        // Replace with actual decryption logic
-        return data;  // Simplified for demo purposes
+        Debug.Log($"Sending request to {url}");
+        Debug.Log($"Payload: {payload}");
     }
 
-    [System.Serializable]
-    private class TokenResponse
+    private void LogResponse(UnityWebRequest www)
     {
-        public string token;
+        Debug.Log($"Response code: {www.responseCode}");
+        Debug.Log($"Response: {www.downloadHandler.text}");
     }
 }
