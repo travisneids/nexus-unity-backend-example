@@ -8,7 +8,7 @@ using System;
 public class AuthController : MonoBehaviour
 {
     [Header("UI Elements")]
-    public TMP_InputField usernameInputField;
+    public TMP_InputField playerNameInputField;
     public TMP_InputField passwordInputField;
     public Button registerButton;
     public Button loginButton;
@@ -24,21 +24,22 @@ public class AuthController : MonoBehaviour
         // Add listeners for buttons
         registerButton.onClick.AddListener(() => ProcessUserCredentials(RegisterEndpoint));
         loginButton.onClick.AddListener(() => ProcessUserCredentials(LoginEndpoint));
+        Debug.Log("Start");
     }
 
     // Process registration or login
     private void ProcessUserCredentials(string endpoint)
     {
-        string username = usernameInputField.text;
+        string playerName = playerNameInputField.text;
         string password = passwordInputField.text;
 
-        if (string.IsNullOrEmpty(username) || string.IsNullOrEmpty(password))
+        if (string.IsNullOrEmpty(playerName) || string.IsNullOrEmpty(password))
         {
-            UpdateFeedbackText("Username and password required!");
+            UpdateFeedbackText("Player name and password required!");
             return;
         }
 
-        StartCoroutine(SendJsonRequest(new UserCredentials(username, password), backendUrl + endpoint, endpoint == LoginEndpoint));
+        StartCoroutine(SendJsonRequest(new UserCredentials(playerName, password), backendUrl + endpoint, endpoint == LoginEndpoint));
     }
 
     // Send JSON request to server

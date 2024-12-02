@@ -3,12 +3,12 @@ using System;
 [System.Serializable]
 public class UserCredentials
 {
-    public string username;
+    public string playerName;
     public string password;
 
-    public UserCredentials(string username, string password)
+    public UserCredentials(string playerName, string password)
     {
-        this.username = username;
+        this.playerName = playerName;
         this.password = password;
     }
 }
